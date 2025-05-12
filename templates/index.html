@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Local Image Footprint Tracker</title>
+</head>
+<body>
+    <h1>📸 Local Image Footprint Tracker</h1>
+
+    <form method="POST" enctype="multipart/form-data">
+        <label>Upload an image:</label><br>
+        <input type="file" name="image">
+        <button type="submit">Scan</button>
+    </form>
+
+    {% if filename %}
+        <h2>Uploaded Image:</h2>
+        <img src="{{ url_for('static', filename='uploads/' + filename) }}" width="300">
+    {% endif %}
+
+    {% if results %}
+        <h2>Comparison Results:</h2>
+        <ul>
+            {% for name, score in results %}
+                <li><strong>{{ name }}</strong> → Similarity: {{ score }}%</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+</body>
+</html>

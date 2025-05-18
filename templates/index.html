@@ -1,29 +1,72 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Local Image Footprint Tracker</title>
+  <meta charset="UTF-8" />
+  <title>Image Tracker with Online Search</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <h1>📸 Local Image Footprint Tracker</h1>
+  <header>
+    <div class="navbar">
+      <div class="logo">
+        <a href="#">Image Tracking System</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <h1>🔎 Image Tracking System (Offline + Online)</h1>
 
     <form method="POST" enctype="multipart/form-data">
-        <label>Upload an image:</label><br>
-        <input type="file" name="image">
-        <button type="submit">Scan</button>
+      <label>Select image:</label><br>
+      <input type="file" name="image" accept="image/*" required><br>
+      <label>Folder path to compare with:</label><br>
+      <input type="text" name="folder" placeholder="e.g. static/reference" required><br><br>
+      <button type="submit">Scan</button>
     </form>
 
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="flash-messages">
+          <ul>
+            {% for message in messages %}
+              <li>{{ message }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+    {% endwith %}
+
     {% if filename %}
-        <h2>Uploaded Image:</h2>
-        <img src="{{ url_for('static', filename='uploads/' + filename) }}" width="300">
+      <div class="section-title"><h3>Uploaded Image:</h3></div>
+      <img src="{{ url_for('static', filename='uploads/' + filename) }}" alt="Uploaded Image" width="300">
     {% endif %}
 
-    {% if results %}
-        <h2>Comparison Results:</h2>
-        <ul>
-            {% for name, score in results %}
-                <li><strong>{{ name }}</strong> → Similarity: {{ score }}%</li>
-            {% endfor %}
-        </ul>
+    {% if watermark_found is not none %}
+      <p class="watermark-warning"><strong>⚠️ Watermark detected: {{ 'Yes' if watermark_found else 'No' }}</strong></p>
     {% endif %}
+
+    {% if match_paths %}
+      <div class="section-title"><h3>Local Files Search Results:</h3></div>
+      <div class="result-list">
+        {% for match in match_paths %}
+          <div class="match-card">
+            <p>{{ match }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if online_results %}
+      <div class="section-title"><h3>Online Reverse Image Search Results:</h3></div>
+      <div class="result-list">
+        {% for result in online_results %}
+          <div class="match-card">
+            <p><a href="{{ result.link }}" target="_blank">{{ result.title }}</a></p>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
 </body>
 </html>

@@ -3,9 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <title>Image Tracker with Online Search</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style_merged.css') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+  <style>
+    img.secure-image {
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-drag: none;
+      max-width: 90%;
+      max-height: 90%;
+    }
+  </style>
 </head>
-<body>
+<body oncontextmenu="return false;" onkeydown="return disableShortcuts(event);" ondragstart="return false;" onselectstart="return false;">
   <header>
     <div class="navbar">
       <div class="logo">
@@ -39,7 +53,15 @@
 
     {% if filename %}
       <div class="section-title"><h3>Uploaded Image:</h3></div>
-      <img src="{{ url_for('static', filename='uploads/' + filename) }}" alt="Uploaded Image" width="300">
+      <div class="relative inline-block group">
+        <img src="{{ url_for('static', filename='uploads/' + filename) }}" 
+             alt="Uploaded Image"
+             class="select-none pointer-events-none secure-image"
+             style="user-drag: none; -webkit-user-drag: none;">
+        <div class="absolute inset-0 z-10" 
+             oncontextmenu="return false;"
+             style="background: transparent;"></div>
+      </div>
     {% endif %}
 
     {% if watermark_found is not none %}
@@ -49,9 +71,9 @@
     {% if match_paths %}
       <div class="section-title"><h3>Local Files Search Results:</h3></div>
       <div class="result-list">
-        {% for match in match_paths %}
-          <div class="match-card">
-            <p>{{ match }}</p>
+        {% for path in match_paths %}
+          <div class="result-card">
+            <a href="#" onclick="openFolder('{{ path|escape }}'); return false;">{{ path }}</a>
           </div>
         {% endfor %}
       </div>
@@ -67,6 +89,51 @@
         {% endfor %}
       </div>
     {% endif %}
+
+    {% if filename %}
+      <form action="/download_report" method="get">
+        <input type="hidden" name="filename" value="{{ filename }}">
+        {% for path in match_paths %}
+          <input type="hidden" name="match_paths" value="{{ path }}">
+        {% endfor %}
+        <input type="hidden" name="watermark_found" value="{{ watermark_found }}">
+        {% for result in online_results %}
+          <input type="hidden" name="online_results" value="{{ result.get('link', '') }}">
+        {% endfor %}
+        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded mt-4">
+          Download Report (PDF)
+        </button>
+      </form>
+    {% endif %}
   </div>
+
+  <script>
+    function openFolder(path) {
+      fetch(`/open?path=${encodeURIComponent(path)}`)
+        .then(response => {
+          if (!response.ok) {
+            alert("Failed to open folder.");
+          }
+        })
+        .catch(err => {
+          alert("Error sending request to open folder.");
+        });
+    }
+
+    function disableShortcuts(e) {
+      if (
+        (e.ctrlKey && ['s', 'S', 'u', 'U', 'p', 'P'].includes(e.key)) ||
+        e.key === 'F12'
+      ) {
+        e.preventDefault();
+        alert("This action is disabled for security reasons.");
+        return false;
+      }
+    }
+
+    document.addEventListener('contextmenu', event => event.preventDefault());
+    document.addEventListener('dragstart', event => event.preventDefault());
+    document.addEventListener('selectstart', event => event.preventDefault());
+  </script>
 </body>
 </html>

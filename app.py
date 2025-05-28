@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, make_response
 from werkzeug.utils import secure_filename
 import os
 import platform
@@ -7,6 +7,12 @@ from image_handler import save_image, detect_watermark, get_sha256
 from comparator import find_duplicate_images
 import requests
 from dotenv import load_dotenv
+from flask import send_file
+from io import BytesIO
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+import datetime
+
 
 load_dotenv()
 
@@ -61,6 +67,16 @@ def search_online(image_url):
         print("Search error:", e)
         return []
 
+@app.after_request
+def add_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data:;"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    return response
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     filename = None
@@ -108,19 +124,82 @@ def index():
 def open_file():
     path = request.args.get('path')
     if path and os.path.exists(path):
-        folder = os.path.dirname(path)
         try:
+            # Validate path to avoid directory traversal
+            safe_base = os.path.abspath('.')
+            full_path = os.path.abspath(path)
+            if not full_path.startswith(safe_base):
+                return "Invalid path", 400
+
             if platform.system() == "Windows":
-                os.startfile(folder)
-            elif platform.system() == "Darwin":  # macOS
-                subprocess.Popen(["open", folder])
-            else:  # Linux
-                subprocess.Popen(["xdg-open", folder])
+                subprocess.Popen(f'explorer /select,"{full_path}"')
+            elif platform.system() == "Darwin":
+                subprocess.Popen(["open", "-R", full_path])
+            else:
+                subprocess.Popen(["xdg-open", os.path.dirname(full_path)])
+            return '', 200
         except Exception as e:
-            flash(f"Failed to open folder: {e}")
+            print("Error opening folder:", e)
+            return "Failed to open folder", 500
     else:
-        flash("Invalid or missing file path.")
-    return redirect('/')
+        print("Invalid path or path does not exist.")
+        return "Invalid path", 400
+    
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
+import io
+
+@app.route('/download_report')
+def download_report():
+    filename = request.args.get('filename')
+    match_paths = request.args.get('match_paths')
+    watermark_found = request.args.get('watermark_found')
+    image_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+
+    # Create the PDF in memory
+    pdf_buffer = io.BytesIO()
+    c = canvas.Canvas(pdf_buffer, pagesize=letter)
+    width, height = letter
+
+    # Title
+    c.setFont("Helvetica-Bold", 20)
+    c.drawString(50, height - 50, "Image Analysis Report")
+
+    # Add the uploaded image
+    try:
+        img_reader = ImageReader(image_path)
+        c.drawImage(img_reader, 50, height - 300, width=200, preserveAspectRatio=True, mask='auto')
+    except Exception as e:
+        print("Image error:", e)
+
+    # Add watermark info
+    c.setFont("Helvetica", 12)
+    y = height - 320
+    c.drawString(50, y, f"Watermark Found: {'Yes' if watermark_found == 'True' else 'No'}")
+    y -= 20
+
+    # Add duplicate matches
+    c.drawString(50, y, "Duplicate Matches Found:")
+    y -= 20
+    if match_paths:
+        for path in match_paths.split(';'):
+            if y < 50:
+                c.showPage()
+                y = height - 50
+            c.drawString(70, y, f"- {path}")
+            y -= 20
+    else:
+        c.drawString(70, y, "No matches found.")
+
+    c.showPage()
+    c.save()
+
+    pdf_buffer.seek(0)
+
+    return send_file(pdf_buffer, as_attachment=True, download_name="report.pdf", mimetype="application/pdf")
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)

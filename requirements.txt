@@ -1,1 +1,7 @@
-
+Flask
+Pillow
+imagehash
+opencv-python
+requests
+python-dotenv
+fpdf2
